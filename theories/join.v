@@ -399,6 +399,13 @@ Proof.
   elim : T C / h; hecrush inv:Par ctrs:Par, rtc.
 Qed.
 
+Lemma Pars_refl_inv p (h : tRefl ⇒* p) : p = tRefl.
+Proof.
+  move E : tRefl h => q h.
+  move : E.
+  elim : p / h => //. sauto lq:on rew:off.
+Qed.
+
 Lemma Pars_univ_inv i A (h : (tUniv i) ⇒* A) :
   A = tUniv i.
 Proof.
