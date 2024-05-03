@@ -517,10 +517,17 @@ Lemma PerTypeN_Fun_inv' i A0 B0 A1 B1
     (forall a0 a1, RA a0 a1 -> ⟦ B0[a0..] ⟧ ~ ⟦ B1[a1..] ⟧ i).
 Proof. hauto lq:on use:PerTypeN_nolt, PerType_Fun_inv'. Qed.
 
-(* tEq inversion lemmas
-   do we really need these?
+(* tEq inversion lemmas *)
 
 Lemma InterpExt_Eq_inv i I a b A R
+  (I_bwd :  forall j, j < i ->
+            forall a0 a1 b0 b1,
+            a0 ⇒ a1 -> b0 ⇒ b1 ->
+            I j a1 b1 -> I j a0 b0)
+  (I_fwd :  forall j, j < i ->
+            forall a0 a1 b0 b1,
+            a0 ⇒ a1 -> b0 ⇒ b1 ->
+            I j a0 b0 -> I j a1 b1)
   (h : ⟦ tEq a b A ⟧ i , I ↘ R) :
   exists (RA : tm_rel),
     ⟦ A ⟧ i , I ↘ RA /\
@@ -538,11 +545,35 @@ Proof.
     exists RA. split. eapply InterpExt_Step; eauto.
     fext. move => p1 p2. subst.
     apply propositional_extensionality. intuition.
-    eapply InterpExt_bwd_R; eauto. admit.
-    eapply InterpExt_fwd_R; eauto. admit.
-Admitted.
+    eapply InterpExt_bwd_R; eauto.
+    eapply InterpExt_fwd_R; eauto.
+Qed.
 
-*)
+Lemma PerType_Eq_inv i I a0 b0 A0 T
+  (I_bwd :  forall j, j < i ->
+            forall a0 a1 b0 b1,
+            a0 ⇒ a1 -> b0 ⇒ b1 ->
+            I j a1 b1 -> I j a0 b0)
+  (I_fwd :  forall j, j < i ->
+            forall a0 a1 b0 b1,
+            a0 ⇒ a1 -> b0 ⇒ b1 ->
+            I j a0 b0 -> I j a1 b1)
+  (h : ⟦ tEq a0 b0 A0 ⟧ ~ ⟦ T ⟧ i , I) :
+  exists a1 b1 A1 RA,
+    T ⇒* tEq a1 b1 A1 /\
+    ⟦ A0 ⟧ ~ ⟦ A1 ⟧ i , I /\
+    ⟦ A0 ⟧ i , I ↘ RA /\
+    ⟦ A1 ⟧ i , I ↘ RA /\
+    RA a0 a1 /\ RA b0 b1.
+Proof.
+  move E : (tEq a0 b0 A0) h => T0 h.
+  move : a0 b0 A0 E.
+  elim : T0 T /h => //.
+  - hauto lq:on use:rtc_refl.
+  - move => P0 P1 Q0 Q1 rP rQ h ih *. subst.
+    elim /Par_inv : rP => //.
+    hauto l:on ctrs:rtc use:PerType_Step, InterpExt_Step, InterpExt_bwd_R, Par_refl.
+Qed.
 
 (* Interpretations are cumulative *)
 
@@ -600,16 +631,15 @@ Proof.
   move => h.
   move : RB.
   elim : A RA / h.
-  - move => A B RA RF hRA ihRA hRF hRB ihRB R hR.
-    move /InterpExt_Fun_inv : hR => [RA' [RF' [hRA' [hRF' [hRB' ->]]]]].
+  - move => A B RA RF _ ihRA hRF hRB ihRB R hR.
+    move /InterpExt_Fun_inv : hR => [RA'] [RF'] [hRA'] [hRF'] [hRB'] ->.
     fext => b0 b1 a0 a1 RB'.
-    specialize (ihRA RA' hRA'); subst.
     apply propositional_extensionality.
-    hauto lq:on rew:off. (* slow *)
+    hauto lq:on rew:off finish:(assumption). (* slow *)
   - hauto lq:on rew:off inv:InterpExt ctrs:InterpExt use:InterpExt_Univ_inv.
-  - admit.
+  - move => *. fext. hauto lq:on use:InterpExt_Eq_inv.
   - sfirstorder use:InterpExt_fwd.
-Admitted.
+Qed.
 
 Lemma InterpUnivN_deterministic i A RA RB :
   ⟦ A ⟧ i ↘ RA ->
@@ -673,6 +703,14 @@ Lemma InterpExt_refl i I A R
 Proof. hauto lq:on use:InterpExt_sym, InterpExt_trans. Qed.
 
 Lemma PerType_trans i I
+  (I_bwd :  forall j, j < i ->
+            forall a0 a1 b0 b1,
+            a0 ⇒ a1 -> b0 ⇒ b1 ->
+            I j a1 b1 -> I j a0 b0)
+  (I_fwd :  forall j, j < i ->
+            forall a0 a1 b0 b1,
+            a0 ⇒ a1 -> b0 ⇒ b1 ->
+            I j a0 b0 -> I j a1 b1)
   (hsym : forall A B, (⟦ A ⟧ ~ ⟦ B ⟧ i , I) -> (⟦ B ⟧ ~ ⟦ A ⟧ i , I))
   (Isym : forall j A B, j < i -> I j A B -> I j B A)
   (Itrans : forall j A B C, j < i -> I j A B -> I j B C -> I j A C) :
@@ -680,14 +718,17 @@ Lemma PerType_trans i I
 Proof.
   move => A B C h. move : C.
   elim : A B /h.
-  - move => A0 A1 B0 B1 RA hA01 ihA hRA0 hRA1 hB01 ihB C hC.
-    move /PerType_Fun_inv : hC => [A2 [B2 [RA' [hC [hA12 [hRA1' [hRA2' hB12]]]]]]].
-    eapply PerType_Steps with (A1 := tPi A0 B0) (B1 := tPi A2 B2); auto.
-    + apply rtc_refl.
-    + have E : RA = RA' by eapply InterpExt_deterministic; eauto.
-      qauto l:on ctrs:PerType use:InterpExt_refl.
+  - move => A0 A1 B0 B1 RA hA01 ihA hRA0 hRA1 hB01 ihB C.
+    move /PerType_Fun_inv => [A2] [B2] [RA'] [hC] [hA12] [hRA1'] [hRA2'] hB12.
+    have E : RA = RA' by eapply InterpExt_deterministic; eauto. subst.
+    hauto lq:on ctrs:PerType use:PerType_Steps, rtc_refl, InterpExt_refl.
   - sfirstorder.
-  - hauto lq:on ctrs:PerType use:Par_refl, PerType_preservation.
+  - move => a0 a1 b0 b1 A0 A1 RA hA ihA01 hRA0 hRA1 RAa RAb C.
+    move /(PerType_Eq_inv i I a1 b1 A1 C I_bwd I_fwd) =>
+      [a2] [b2] [A2] [RA'] [rC] [hA12] [hRA1'] [hRA2'] [RAa'] RAb'.
+    have E : RA = RA' by eapply InterpExt_deterministic; eauto. subst.
+    hauto l:on use:PerType_Steps, rtc_refl, PerType_Eq, InterpExt_trans.
+  - hauto lq:on ctrs:PerType use:Par_refl, PerType_fwd.
 Qed.
 
 Lemma PerTypeN_trans i : forall A B C,
@@ -696,11 +737,10 @@ Proof.
   have h : Acc (fun x y => x < y) i by sfirstorder use:wellfounded.
   elim : i /h.
   move => j h ih A B C hAB hBC.
-  simp PerTypeN in * |- *.
-  eapply PerType_trans; eauto.
-  - hauto l:on use:PerType_sym, PerTypeN_sym.
-  - hauto q:on use:PerTypeN_sym, Compare_dec.lt_dec.
-  - hauto l:on use:Compare_dec.lt_dec.
+  rewrite PerTypeN_nolt.
+  apply PerType_trans with (B := B);
+  try rewrite <- PerTypeN_nolt;
+  eauto using PerTypeN_Step, PerTypeN_fwd, PerTypeN_sym.
 Qed.
 
 Lemma InterpUnivN_trans i A R (h : ⟦ A ⟧ i ↘ R) :
