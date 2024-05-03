@@ -924,18 +924,18 @@ Proof.
     case /InterpUnivN_Univ_inv : hR => E /ltac:(subst) _. clear k ihPi.
     have [R [hR0 hR1]] := PerTypeN_InterpUnivN _ _ _ hRPi.
     exists i, R. repeat split; auto.
-    case /InterpExt_Fun'_inv : hR0 => RA [hRA] [_] ->.
+    case /InterpUnivN_Fun'_inv : hR0 => RA [hRA] [_] ->.
     move => a0 a1 RB' hRAa /ltac:(asimpl) hRB0' hRB1'.
     have hρa : ρ_ok (A :: Γ) (a0 .: ρ0) (a1 .: ρ1). {
       have [_ [hA _]] := PerTypeN_Fun_inv' _ _ _ _ _ hRPi.
       case /PerTypeN_InterpUnivN : hA => [RA'] [?] ?.
-      have ERA : RA = RA' by eapply InterpExt_deterministic; eauto. subst.
+      have ERA : RA = RA' by eapply InterpUnivN_deterministic; eauto. subst.
       eapply ρ_ok_cons; eauto.
     }
     case /(_ (a0 .: ρ0) (a1 .: ρ1) hρa) : ihb => j [RB] [hB] [hRB0] [hRB1] hRBb.
     have <- : RB = RB' by hauto l:on use:InterpUnivN_deterministic'.
     clear R hRPi hR1 hRA hRAa RA hρ hρa RB' hB hRB0' hRB1' i.
-    eapply InterpUnivN_noitavreserp; eauto;
+    eapply InterpUnivN_bwd_R; eauto;
     eapply P_AppAbs'; auto using Par_refl; by asimpl.
   }
   (* App *)
@@ -943,8 +943,8 @@ Proof.
     move => Γ f A B a _ ihf _ iha ρ0 ρ1 hρ.
     case /(_ ρ0 ρ1 hρ) : iha => i [RA] [_] [hRA0] [hRA1] hRAa.
     case /(_ ρ0 ρ1 hρ) : ihf => /ltac:(asimpl) j [R] [hPi] [hR0] [hR1] hRf.
-    case /InterpExt_Fun'_inv : hR0 => RA0 [hRA0'] [hRB0] E.
-    case /InterpExt_Fun'_inv : hR1 => RA1 [hRA1'] [_] _.
+    case /InterpUnivN_Fun'_inv : hR0 => RA0 [hRA0'] [hRB0] E.
+    case /InterpUnivN_Fun'_inv : hR1 => RA1 [hRA1'] [_] _.
     subst. unfold ProdSpace in hRf.
     rewrite PerTypeN_nolt in hPi.
     case /PerType_Fun_inv' : hPi => RA'' [_] [hRA0''] [hRA1''] hB.
@@ -976,15 +976,3 @@ Proof.
   (* skip the rest *)
   all: admit.
 Admitted.
-
-Lemma consistency : forall b, nil ⊨ tAbs b ∈ (tPi (tUniv 1) (var_tm 0)) -> False.
-Proof.
-  move => b h.
-  unfold SemWt in *.
-  case /(_ _ _ (ρ_ok_nil var_tm var_tm)) : h => i [R] [hUniv] [hR1] [_] hRb.
-  case /PerTypeN_Fun_inv' : hUniv => [RU] [_] [hRU1] [_] _.
-  case /InterpExt_Fun'_inv : hR1 => [RV] [hRV] [hB01] E.
-  have E' : RU = RV by hauto lq:on use:InterpUnivN_deterministic.
-  case /InterpUnivN_Univ_inv : hRV => [E''] _.
-  subst. unfold ProdSpace in hRb. clear hRU1.
-Abort.
