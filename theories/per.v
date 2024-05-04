@@ -302,6 +302,15 @@ Lemma InterpUnivN_bwd_R i A R (h : ⟦ A ⟧ i ↘ R) :
   forall a0 a1 b0 b1, a0 ⇒ a1 -> b0 ⇒ b1 -> R a1 b1 -> R a0 b0.
 Proof. hauto lq:on use:InterpExt_bwd_R, PerTypeN_Step. Qed.
 
+Lemma InterpUnivN_bwds_R i A R a0 a1 b0 b1
+  (h : ⟦ A ⟧ i ↘ R)
+  (ra : a0 ⇒* a1) (rb : b0 ⇒* b1) :
+  R a1 b1 -> R a0 b0.
+Proof.
+  elim : a0 a1 /ra; elim : b0 b1 /rb;
+  hauto l:on use:InterpUnivN_bwd_R, Par_refl.
+Qed.
+
 (* Forward preservation *)
 
 Lemma InterpExt_fwd_R i I A R a0 a1 b0 b1
@@ -558,6 +567,13 @@ Proof.
     elim /Par_inv : rP => //.
     hauto l:on ctrs:rtc use:PerType_Step, InterpExt_Step, InterpExt_bwd_R, Par_refl.
 Qed.
+
+Lemma InterpUnivN_Eq_inv i a b A R
+  (h : ⟦ tEq a b A ⟧ i ↘ R) :
+  exists (RA : tm_rel),
+    ⟦ A ⟧ i ↘ RA /\
+    R = (fun p1 p2 => p1 ⇒* tRefl /\ p2 ⇒* tRefl /\ RA a b).
+Proof. hauto l:on use:InterpExt_Eq_inv, PerTypeN_Step, PerTypeN_fwd. Qed.
 
 (* Interpretations are cumulative *)
 
@@ -995,7 +1011,27 @@ Proof.
   }
   (* J *)
   5: {
-    admit.
+    move => Γ t a b p A i j C _ iha _ ihb _ ihA _ ihp _ /SemWt_Univ ihC _ iht ρ0 ρ1 hρ.
+    case /(_ ρ0 ρ1 hρ) : iha => ka ?.
+    case /(_ ρ0 ρ1 hρ) : ihb => kb [RA] [hA] [hRA0] [hRA1] hRAb.
+    case /(_ ρ0 ρ1 hρ) : ihp => kp [REq] [hEq] [hREq0] [hREq1] hREqp.
+    case /(_ ρ0 ρ1 hρ) : iht => kt [R] [hC] [hR0] [hR1] hRt.
+    asimpl in *.
+    have hρ' : ρ_ok (tEq a ⟨S⟩ (var_tm 0) A ⟨S⟩ :: A :: Γ)
+                    (p[ρ0] .: (b[ρ0] .: ρ0))
+                    (p[ρ1] .: (b[ρ1] .: ρ1)). {
+      eapply ρ_ok_cons; asimpl; eauto.
+      eapply ρ_ok_cons; eauto.
+    }
+    move /(_ _ _ hρ') : ihC => hC'.
+    case : (PerTypeN_InterpUnivN _ _ _ hC') => [R'] [hR0'] hR1'.
+    move /(InterpUnivN_Eq_inv _ _ _ _ _) : hREq0 => [RA'] [hRA'] E. subst.
+    move : hREqp => [rp0] [rp1] hRAab'.
+    exists i, R. repeat split; auto.
+    - admit.
+    - admit.
+    - eapply InterpUnivN_bwds_R with (a1 := t[ρ0]) (b1 := t[ρ1]);
+      eauto using P_JRefl_star.
   }
   (* Nil *)
   8: apply SemWff_nil.
