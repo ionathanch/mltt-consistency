@@ -249,7 +249,7 @@ Proof.
       hauto l:on use:adequacy, InterpUniv_wn_ty, InterpUnivN_Eq unfold:CR.
     + qauto l:on ctrs:rtc use:Coherent_reflexive inv:Par .
   (* Eq *)
-  - move => Γ a b A i j _ ha _ hb _ /SemWt_Univ hA.
+  - move => Γ a b A i _ ha _ hb _ /SemWt_Univ hA.
     apply SemWt_Univ => ρ hρ.
     eexists => /=. apply InterpUnivN_Eq;
       hauto l:on use:adequacy, InterpUniv_wn_ty unfold:SemWt, CR.

@@ -964,15 +964,43 @@ Proof.
   1: {
     move => Γ a A B i _ iha _ ihB hsub ρ0 ρ1 hρ.
     case /(_ ρ0 ρ1 hρ) : iha => j [R] [hA] [hR1] [hR2] hRa.
-    exists j, R. repeat split; auto.
+    exists j, R. repeat split; auto; admit.
     (* best use:Coherent_subst_star, InterpUnivN_coherent, PerTypeN_coherent. *)
   }
   (* Univ *)
   5: qauto l:on ctrs:PerType use:SemWt_Univ, PerTypeN_nolt.
+  (* Refl *)
+  5: {
+    move => Γ a A _ wf _ iha ρ0 ρ1 hρ. asimpl.
+    case /(_ ρ0 ρ1 hρ) : iha => i [R] [hA] [hRA0] [hRA1] hRAa.
+    have E0 : R a[ρ0] a[ρ1] = R a[ρ0] a[ρ0] by
+      hauto l:on use:propositional_extensionality, InterpUnivN_refl.
+    have E1 : R a[ρ0] a[ρ1] = R a[ρ1] a[ρ1] by
+      hauto l:on use:propositional_extensionality, InterpUnivN_refl.
+    exists i, (fun p1 p2 => p1 ⇒* tRefl /\ p2 ⇒* tRefl /\ R a[ρ0] a[ρ1]).
+    sauto lqb:on use:rtc_refl, PerTypeN_Eq, InterpExt_Eq'.
+  }
+  (* Eq *)
+  5: {
+    move => Γ a b A i _ iha _ ihb _ /SemWt_Univ ihA ρ0 ρ1 hρ.
+    case /(_ ρ0 ρ1 hρ) : iha => j [RA0] [_] [hRA00] [hRA10] ?.
+    case /(_ ρ0 ρ1 hρ) : ihb => k [RA1] [_] [hRA01] [hRA11] ?.
+    move /(_ ρ0 ρ1 hρ) : ihA => ihA.
+    case : (PerTypeN_InterpUnivN _ _ _ ihA) => [RA] [?] ?.
+    have E0 : RA = RA0 by eapply InterpUnivN_deterministic'; eauto.
+    have E1 : RA = RA1 by eapply InterpUnivN_deterministic'; eauto.
+    subst. asimpl in *. clear hRA00 hRA10 hRA01 hRA11.
+    exists (S i), (PerTypeN i).
+    sauto l:on use:PerTypeN_Univ, InterpExt_Univ, PerTypeN_Eq.
+  }
+  (* J *)
+  5: {
+    admit.
+  }
   (* Nil *)
-  11: apply SemWff_nil.
+  8: apply SemWff_nil.
   (* Cons *)
-  11: eauto using SemWff_cons.
+  8: eauto using SemWff_cons.
   (* skip the rest *)
   all: admit.
 Admitted.

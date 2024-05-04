@@ -82,10 +82,10 @@ Inductive Wt : context -> tm -> tm -> Prop :=
   (* ------ *)
   Γ ⊢ tRefl ∈ (tEq a a A)
 
-| T_Eq Γ a b A i j :
+| T_Eq Γ a b A i :
   Γ ⊢ a ∈ A ->
   Γ ⊢ b ∈ A ->
-  Γ ⊢ A ∈ (tUniv j) ->
+  Γ ⊢ A ∈ (tUniv i) ->
   (* ----------------------- *)
   Γ ⊢ (tEq a b A) ∈ (tUniv i)
 
