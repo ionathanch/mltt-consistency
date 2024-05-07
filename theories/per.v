@@ -962,15 +962,13 @@ Proof.
     case /InterpUnivN_Fun'_inv : hR0 => RA0 [hRA0'] [hRB0] E.
     case /InterpUnivN_Fun'_inv : hR1 => RA1 [hRA1'] [_] _.
     subst. unfold ProdSpace in hRf.
-    rewrite PerTypeN_nolt in hPi.
-    case /PerType_Fun_inv' : hPi => RA'' [_] [hRA0''] [hRA1''] hB.
+    case /PerTypeN_Fun_inv' : hPi => RA'' [_] [hRA0''] [hRA1''] hB.
     have ERA0 : RA0 = RA by hauto l:on use:InterpUnivN_deterministic'.
     have ERA1 : RA1 = RA by hauto l:on use:InterpUnivN_deterministic'.
     have ERA'' : RA'' = RA by hauto l:on use:InterpUnivN_deterministic'.
     subst. clear hRA0 hRA0' hRA0'' hRA1 hRA1' hRA1'' hρ i.
     move /(_ _ _ hRAa) : hB => hB.
     move /(_ _ _ hRAa) : hRB0 => [RB0] [hRB0'] hRB01.
-    rewrite <- PerTypeN_nolt in hB.
     have [RB [hRB0 hRB1]] := PerTypeN_InterpUnivN _ _ _ hB.
     have ERB0 : RB0 = RB by hauto l:on use:InterpUnivN_deterministic.
     subst. move /(_ _ _ RB hRAa hRB0 hRB01) : hRf => hRBfa.
@@ -984,7 +982,7 @@ Proof.
     (* best use:Coherent_subst_star, InterpUnivN_coherent, PerTypeN_coherent. *)
   }
   (* Univ *)
-  5: qauto l:on ctrs:PerType use:SemWt_Univ, PerTypeN_nolt.
+  5: hauto lq:on use:SemWt_Univ, PerTypeN_Univ.
   (* Refl *)
   5: {
     move => Γ a A _ wf _ iha ρ0 ρ1 hρ. asimpl.
