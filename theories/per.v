@@ -1009,27 +1009,45 @@ Proof.
   }
   (* J *)
   5: {
-    move => Γ t a b p A i j C _ iha _ ihb _ ihA _ ihp _ /SemWt_Univ ihC _ iht ρ0 ρ1 hρ.
-    case /(_ ρ0 ρ1 hρ) : iha => ka ?.
-    case /(_ ρ0 ρ1 hρ) : ihb => kb [RA] [hA] [hRA0] [hRA1] hRAb.
-    case /(_ ρ0 ρ1 hρ) : ihp => kp [REq] [hEq] [hREq0] [hREq1] hREqp.
-    case /(_ ρ0 ρ1 hρ) : iht => kt [R] [hC] [hR0] [hR1] hRt.
+    move => Γ t a b p A i j C _ _ _ ihb _ _ _ ihp _ /SemWt_Univ ihC _ iht ρ0 ρ1 hρ.
+    case /(_ ρ0 ρ1 hρ) : ihb => kb [RA] [_] [hRA0] [hRA1] hRAb.
+    case /(_ ρ0 ρ1 hρ) : ihp => kp [REq] [_] [hREq0] [hREq1] hREqp.
+    case /(_ ρ0 ρ1 hρ) : iht => kt [R] [_] [hR0] [_] hRt.
     asimpl in *.
-    have hρ' : ρ_ok (tEq a ⟨S⟩ (var_tm 0) A ⟨S⟩ :: A :: Γ)
-                    (p[ρ0] .: (b[ρ0] .: ρ0))
+    move /(InterpUnivN_Eq_inv _ _ _ _ _) : hREq0 => [RA0] [hRA0'] E0.
+    move /(InterpUnivN_Eq_inv _ _ _ _ _) : hREq1 => [RA1] [hRA1'] E1.
+    have ? : RA0 = RA by hauto l:on use:InterpUnivN_deterministic'. clear hRA0'.
+    have ? : RA1 = RA by hauto l:on use:InterpUnivN_deterministic'. clear hRA1'.
+    subst. move : hREqp => [rp0] [rp1] hRAab.
+    have hρRefl : ρ_ok (tEq a ⟨S⟩ (var_tm 0) A ⟨S⟩ :: A :: Γ)
+                    (tRefl[ρ0] .: (a[ρ0] .: ρ0))
                     (p[ρ1] .: (b[ρ1] .: ρ1)). {
       eapply ρ_ok_cons; asimpl; eauto.
+      - eapply InterpExt_Eq' with
+        (R := fun p0 p1 => p0 ⇒* tRefl /\ p1 ⇒* tRefl /\ RA a[ρ0] b[ρ0]); eauto.
+        fext => *. apply propositional_extensionality. split;
+        hauto lq:on use:InterpUnivN_refl.
+      - eapply InterpExt_Eq'; eauto.
+      - hauto lq:on use:rtc_refl, InterpUnivN_refl.
+      - hauto lq:on use:ρ_ok_cons, InterpUnivN_trans.
+    }
+    have hρp : ρ_ok (tEq a ⟨S⟩ (var_tm 0) A ⟨S⟩ :: A :: Γ)
+                    (p[ρ0] .: (b[ρ0] .: ρ0))
+                    (p[ρ1] .: (b[ρ1] .: ρ1)). {
+      eapply ρ_ok_cons; asimpl.
+      1-3: sauto lq:on use:InterpExt_Eq'.
       eapply ρ_ok_cons; eauto.
     }
-    move /(_ _ _ hρ') : ihC => hC'.
-    case : (PerTypeN_InterpUnivN _ _ _ hC') => [R'] [hR0'] hR1'.
-    move /(InterpUnivN_Eq_inv _ _ _ _ _) : hREq0 => [RA'] [hRA'] E. subst.
-    move : hREqp => [rp0] [rp1] hRAab'.
-    exists i, R. repeat split; auto.
-    - admit.
-    - admit.
-    - eapply InterpUnivN_bwds_R with (a1 := t[ρ0]) (b1 := t[ρ1]);
-      eauto using P_JRefl_star.
+    clear hRA0 hRA1 E1.
+    move /(ihC _ _) : hρRefl => hCRefl.
+    move /(ihC _ _) : hρp => hCp. clear ihC.
+    case /(PerTypeN_InterpUnivN _ _ _) : hCRefl => [RRefl] [hRRefl] hRp1'.
+    case : (PerTypeN_InterpUnivN _ _ _ hCp) => [Rp] [hRp0] hRp1.
+    have ? : RRefl = Rp by hauto l:on use:InterpUnivN_deterministic'. clear hRp1'.
+    have ? : Rp = R by hauto l:on use:InterpUnivN_deterministic'. clear hR0 hRRefl.
+    subst. exists i, R. repeat split; auto.
+    eapply InterpUnivN_bwds_R with (a1 := t[ρ0]) (b1 := t[ρ1]);
+    eauto using P_JRefl_star.
   }
   (* Nil *)
   8: apply SemWff_nil.
