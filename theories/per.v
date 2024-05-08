@@ -436,6 +436,71 @@ Proof.
   hauto lq:on use:PerTypeN_fwd, Par_refl.
 Qed.
 
+(* Eta laws
+   These are currently unused, but if coherence is extended with eta,
+   they will be needed to show preservation of coherence. *)
+
+Lemma InterpExt_eta i I A B R
+  (I_bwd : forall j, j < i -> forall a0 a1 b0 b1,
+           a0 ⇒ a1 -> b0 ⇒ b1 -> I j a1 b1 -> I j a0 b0)
+  (I_fwd : forall j, j < i -> forall a0 a1 b0 b1,
+           a0 ⇒ a1 -> b0 ⇒ b1 -> I j a0 b0 -> I j a1 b1)
+  (h : ⟦ tPi A B ⟧ i , I ↘ R) :
+  forall a b, R (tAbs (tApp (a ⟨S⟩) (var_tm 0)))
+                (tAbs (tApp (b ⟨S⟩) (var_tm 0))) <-> R a b.
+Proof.
+  move E : (tPi A B) h => C h.
+  move : A B E.
+  elim : C R /h => //.
+  - move => > ? _ _ ? _ > _ f g.
+    split; move => ? a b ? ? ? ?.
+    all: have rfa : tApp (tAbs (tApp (f ⟨S⟩) (var_tm 0))) a ⇒ tApp f a by
+      eapply P_AppAbs' with (a0 := tApp (f ⟨S⟩) (var_tm 0)) (b1 := a);
+      asimpl; sfirstorder use:Par_refl.
+    all: have rfb : tApp (tAbs (tApp (g ⟨S⟩) (var_tm 0))) b ⇒ tApp g b by
+      eapply P_AppAbs' with (a0 := tApp (g ⟨S⟩) (var_tm 0)) (b1 := b);
+      asimpl; sfirstorder use:Par_refl.
+    + hauto l:on unfold:ProdSpace use:InterpExt_fwd_R, Par_refl.
+    + hauto l:on unfold:ProdSpace use:InterpExt_bwd_R, Par_refl.
+  - move => > r.
+    elim /Par_inv : r => //. hauto l:on.
+Qed.
+
+Lemma InterpUnivN_eta_left i A B R
+  (h : ⟦ tPi A B ⟧ i ↘ R) :
+  forall a b, R (tAbs (tApp (a ⟨S⟩) (var_tm 0))) b <-> R a b.
+Proof.
+  move E : (tPi A B) h => C h.
+  move : A B E.
+  elim : C R /h => //.
+  - move => > ? _ _ ? _ > _ f g.
+    split; move => ? a b ? ? ? ?.
+    all: have r : tApp (tAbs (tApp (ren_tm shift f) (var_tm 0))) a ⇒ tApp f a by
+      eapply P_AppAbs' with (a0 := tApp (ren_tm shift f) (var_tm 0)) (b1 := a);
+      asimpl; sfirstorder use:Par_refl.
+    + hauto l:on unfold:ProdSpace use:InterpUnivN_fwd_R, Par_refl, PerTypeN_nolt.
+    + hauto l:on unfold:ProdSpace use:InterpUnivN_bwd_R, Par_refl, PerTypeN_nolt.
+  - move => > r.
+    elim /Par_inv : r => //. hauto l:on.
+Qed.
+
+Lemma InterpUnivN_eta_right i A B R
+  (h : ⟦ tPi A B ⟧ i ↘ R) :
+  forall a b, R a (tAbs (tApp (b ⟨S⟩) (var_tm 0))) <-> R a b.
+Proof.
+  move : (InterpUnivN_eta_left _ _ _ _ h) => ih.
+  split => *;
+  eapply InterpUnivN_sym; eauto;
+  apply ih;
+  eapply InterpUnivN_sym; eauto.
+Qed.
+
+Lemma InterpUnivN_eta i A B R
+  (h : ⟦ tPi A B ⟧ i ↘ R) :
+  forall a b, R (tAbs (tApp (a ⟨S⟩) (var_tm 0)))
+                (tAbs (tApp (b ⟨S⟩) (var_tm 0))) <-> R a b.
+Proof. hauto l:on use:InterpUnivN_eta_left, InterpUnivN_eta_right. Qed.
+
 (* Coherence preservation *)
 
 Lemma InterpUnivN_coherent i A B R (r : A ⇔ B) :
