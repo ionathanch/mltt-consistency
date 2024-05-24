@@ -20,12 +20,6 @@ Proof.
 Qed.
 *)
 
-Lemma lt_irrel {i j} (lt1 lt2 : i < j) : lt1 = lt2.
-Proof.
-  have E : i < j = True by apply propositional_extensionality; intuition.
-  move : lt1 lt2. rewrite E. sauto lq:on.
-Qed.
-
 Definition ProdSpace (RA : tm_rel) (RF : tm -> tm_rel -> Prop) (b0 b1 : tm) :=
   forall a0 a1 RB, RA a0 a1 -> RF a0 RB -> RF a1 RB -> RB (tApp b0 a0) (tApp b1 a1).
 
@@ -590,7 +584,7 @@ Proof.
     apply propositional_extensionality.
     hauto lq:on rew:off finish:(assumption). (* slow *)
   - move => j lt RB /InterpExt_Univ_inv => [[lt'] ->].
-    rewrite (lt_irrel lt lt'). reflexivity.
+    rewrite (Coq.Arith.Peano_dec.le_unique _ _ lt lt'). reflexivity.
   - move => *. fext. hauto lq:on use:InterpExt_Eq_inv.
   - sfirstorder use:InterpExt_fwd.
 Qed.
