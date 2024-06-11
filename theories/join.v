@@ -161,6 +161,30 @@ Proof. move => > ->. apply P_LetPack. Qed.
 
 (* ------------------------------------------------------------ *)
 
+(* Pars form of some constructors *)
+
+Lemma Pars_App a0 a1 b0 b1 (ra : a0 ⇒* a1) (rb : b0 ⇒* b1) : tApp a0 b0 ⇒* tApp a1 b1.
+Proof.
+  move : b0 b1 rb.
+  elim : a0 a1 /ra.
+  - move => a b0 b1 rb.
+    elim : b0 b1 /rb.
+    + sfirstorder ctrs:rtc.
+    + move => b0 b1 b2 r01 r12 rApp.
+      econstructor; eauto.
+      constructor; auto using Par_refl.
+  - move => a0 a1 a2 ra01 ra12 rAppa b0 b1 rb.
+    elim : b0 b1 /rb.
+    + move => b. econstructor.
+      constructor; eauto using Par_refl.
+      apply rAppa. constructor.
+    + move => b0 b1 b2 rb01 rb12 rAppb. econstructor.
+      constructor; eauto.
+      apply rAppa; auto.
+Qed.
+
+(* ------------------------------------------------------------ *)
+
 (* Par (⇒), Pars (⇒* ), and ⇔ are closed under renaming *)
 
 Lemma Par_renaming a b (ξ : fin -> fin) :

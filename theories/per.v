@@ -1,5 +1,6 @@
 Require Import join normalform imports.
 
+Definition tm_set := tm -> Prop.
 Definition tm_rel := tm -> tm -> Prop.
 
 (* (* These are only needed for neutrals; I omit them for now *)
@@ -23,25 +24,48 @@ Qed.
 Definition ProdSpace (RA : tm_rel) (RF : tm -> tm_rel -> Prop) (b0 b1 : tm) :=
   forall a0 a1 RB, RA a0 a1 -> RF a0 RB -> RF a1 RB -> RB (tApp b0 a0) (tApp b1 a1).
 
-Reserved Notation "⟦ A ⟧ i , I ↘ R" (at level 70).
-Inductive InterpExt (i : nat) (I : forall j, j < i -> tm_rel) : tm -> tm_rel -> Prop :=
-(* | InterpExt_Ne A : ne A -> ⟦ A ⟧ i , I ↘ wne_coherent *)
-| InterpExt_Fun A B RA RF :
-  ⟦ A ⟧ i , I ↘ RA ->
-  (forall a0 a1, RA a0 a1 -> exists RB, RF a0 RB /\ RF a1 RB) ->
-  (forall a RB, RF a RB -> ⟦ B[a..] ⟧ i , I ↘ RB) ->
-  ⟦ tPi A B ⟧ i , I ↘ (ProdSpace RA RF)
-| InterpExt_Univ j lt :
-  ⟦ tUniv j ⟧ i , I ↘ (I j lt)
-| InterpExt_Eq a b A RA :
-  ⟦ A ⟧ i , I ↘ RA ->
-  ⟦ tEq a b A ⟧ i , I ↘ (fun p1 p2 => p1 ⇒* tRefl /\ p2 ⇒* tRefl /\ RA a b)
-| InterpExt_Step A0 A1 RA :
-  A0 ⇒ A1 ->
-  ⟦ A1 ⟧ i , I ↘ RA ->
-  ⟦ A0 ⟧ i , I ↘ RA
-where "⟦ A ⟧ i , I ↘ R" := (InterpExt i I A R).
+Definition ProdType (RA : tm_rel) (PA : tm_set) (PF : tm -> tm_set -> Prop) (C : tm) :=
+  exists A' B', C ⇒* tPi A' B' /\ PA A' /\
+    (forall a0 a1 PB, RA a0 a1 -> PF a0 PB -> PF a1 PB -> PB (B'[a0..]) /\ PB (B'[a1..])).
 
+Definition EqSpace (RA : tm_rel) (a b : tm) (p1 p2 : tm) :=
+  p1 ⇒* tRefl /\ p2 ⇒* tRefl /\ RA a b.
+
+Definition EqType (P : tm_set) (RA : tm_rel) (a b : tm) (B : tm) :=
+  exists a' b' A', B ⇒* tEq a' b' A' /\ P A' /\ RA a a' /\ RA b b'.
+  (* what about RA a0 b1, RA a1 b0? *)
+
+Reserved Notation "⟦ A ⟧ i , I ↘ R , P" (at level 70).
+Inductive InterpExt (i : nat) (I : forall j, j < i -> tm_rel) : tm -> tm_rel -> tm_set -> Prop :=
+(* | InterpExt_Ne A : ne A -> ⟦ A ⟧ i , I ↘ wne_coherent *)
+| InterpExt_Fun A B RA RF PA PF :
+  ⟦ A ⟧ i , I ↘ RA , PA ->
+  (forall a0 a1, RA a0 a1 -> exists RB, RF a0 RB /\ RF a1 RB) ->
+  (forall a0 a1, RA a0 a1 -> exists PB, PF a0 PB /\ PF a1 PB) ->
+  (forall a RB PB, RF a RB -> PF a PB -> ⟦ B[a..] ⟧ i , I ↘ RB , PB) ->
+  ⟦ tPi A B ⟧ i , I ↘ (ProdSpace RA RF) , (ProdType RA PA PF)
+| InterpExt_Univ j lt :
+  ⟦ tUniv j ⟧ i , I ↘ (I j lt) , (fun A => A ⇒* tUniv j)
+| InterpExt_Eq a b A RA P :
+  ⟦ A ⟧ i , I ↘ RA , P ->
+  ⟦ tEq a b A ⟧ i , I ↘ (EqSpace RA a b) , (EqType P RA a b)
+| InterpExt_Step A0 A1 R P:
+  A0 ⇒ A1 ->
+  ⟦ A1 ⟧ i , I ↘ R , P ->
+  ⟦ A0 ⟧ i , I ↘ R , P
+where "⟦ A ⟧ i , I ↘ R , P" := (InterpExt i I A R P).
+
+(* Two types A0, A1 are related if they have the same term interpretation RA
+   and if they are related to one another by their respective relation sets. *)
+Equations InterpUnivN (n : nat) : tm -> tm_rel -> tm_set -> Prop by wf n lt :=
+  InterpUnivN n := InterpExt n (fun m _ A0 A1 =>
+    exists RA P0 P1,
+      InterpUnivN m A0 RA P0 /\
+      InterpUnivN m A1 RA P1 /\
+      P0 A1 /\ P1 A0).
+Notation "⟦ A ⟧ i ↘ R , P" := (InterpUnivN i A R P) (at level 70).
+
+(*
 Reserved Notation "⟦ A ⟧ ~ ⟦ B ⟧ i , I" (at level 70, i at next level).
 Inductive PerType (i : nat) (I : forall j, j < i -> tm_rel) : tm_rel :=
 (* | PerType_Ne A B :
@@ -76,261 +100,286 @@ Definition InterpUnivN (n : nat) : tm -> tm_rel -> Prop :=
 
 Notation "⟦ A ⟧ ~ ⟦ B ⟧ i" := (PerTypeN i A B) (at level 70).
 Notation "⟦ A ⟧ i ↘ S" := (InterpUnivN i A S) (at level 70).
+*)
 
-Lemma PerTypeN_nolt n :
-  PerTypeN n = PerType n (fun m _ => PerTypeN m).
-Proof. simp PerTypeN. reflexivity. Qed.
-
-(* InterpUnivN and PerTypeN are symmetric *)
-
-Lemma InterpExt_sym i I A R
-  (h : ⟦ A ⟧ i , I ↘ R)
-  (ih : forall j lt A B, I j lt A B -> I j lt B A) :
-  forall a b, R a b -> R b a.
-Proof.
-  elim : A R /h => //;
-  hauto lq:on unfold:ProdSpace.
-Qed.
-
-Lemma PerType_sym i I A B
-  (ih : forall j lt A B, I j lt A B -> I j lt B A)
-  (h : ⟦ A ⟧ ~ ⟦ B ⟧ i , I) : ⟦ B ⟧ ~ ⟦ A ⟧ i , I.
-Proof.
-  elim h;
-  hauto lq:on ctrs:PerType use:InterpExt_sym.
-Qed.
-
-Lemma PerTypeN_sym i : forall A B, PerTypeN i A B -> PerTypeN i B A.
-Proof.
-  have h : Acc (fun x y => x < y) i by sfirstorder use:wellfounded.
-  elim : i /h.
-  move => j h ih A B hAB.
-  simp PerTypeN in hAB |- *.
-  apply PerType_sym; auto.
-Qed.
-  
-Lemma InterpUnivN_sym i A R (h : ⟦ A ⟧ i ↘ R) :
-  forall a b, R a b -> R b a.
-Proof.
-  elim : A R /h;
-  hauto lq:on use:PerTypeN_sym unfold:ProdSpace.
-Qed.
+Lemma InterpUnivN_nolt n :
+  InterpUnivN n = InterpExt n (fun m _ A0 A1 =>
+    exists RA P0 P1,
+      InterpUnivN m A0 RA P0 /\
+      InterpUnivN m A1 RA P1 /\
+      P0 A1 /\ P1 A0).
+Proof. simp InterpUnivN. reflexivity. Qed.
 
 (* Constructors *)
 
-Lemma InterpExt_Univ' i I j lt R :
+Lemma InterpExt_Univ' i I j lt R P :
   R = I j lt ->
-  ⟦ tUniv j ⟧ i , I ↘ R.
+  P = (fun A => A ⇒* tUniv j) ->
+  ⟦ tUniv j ⟧ i , I ↘ R , P.
 Proof. hauto lq:on ctrs:InterpExt. Qed.
 
-Lemma InterpExt_Eq' i I a b A RA R :
-  R = (fun p1 p2 => p1 ⇒* tRefl /\ p2 ⇒* tRefl /\ RA a b) ->
-  ⟦ A ⟧ i , I ↘ RA ->
-  ⟦ tEq a b A ⟧ i , I ↘ R.
+Lemma InterpExt_Eq' i I a b A RA PA R P :
+  R = EqSpace RA a b ->
+  P = EqType PA RA a b ->
+  ⟦ A ⟧ i , I ↘ RA , PA ->
+  ⟦ tEq a b A ⟧ i , I ↘ R , P.
 Proof. hauto lq:on ctrs:InterpExt. Qed.
 
-Lemma InterpExt_Steps A0 A1 i I R (rA : A0 ⇒* A1) :
-  ⟦ A1 ⟧ i , I ↘ R -> ⟦ A0 ⟧ i , I ↘ R.
+Lemma InterpExt_Steps A0 A1 i I R P (rA : A0 ⇒* A1) :
+  ⟦ A1 ⟧ i , I ↘ R , P -> ⟦ A0 ⟧ i , I ↘ R , P.
 Proof.
   elim : A0 A1 /rA; auto.
   sfirstorder use:InterpExt_Step.
 Qed.
 
-Lemma PerType_Steps A0 A1 B0 B1 i I (rA : A0 ⇒* A1) (rB : B0 ⇒* B1) :
-  ⟦ A1 ⟧ ~ ⟦ B1 ⟧ i , I -> ⟦ A0 ⟧ ~ ⟦ B0 ⟧ i , I.
+(* InterpUnivN is symmetric *)
+
+Lemma InterpExt_sym i I A R P
+  (h : ⟦ A ⟧ i , I ↘ R , P)
+  (ih : forall j lt A B, I j lt A B -> I j lt B A) :
+  forall a b, R a b -> R b a.
 Proof.
-  elim : A0 A1 /rA; elim : B0 B1 /rB; auto;
-  sfirstorder use:PerType_Step, Par_refl.
+  elim : A R P /h => //;
+  hauto lq:on unfold:ProdSpace, EqSpace.
+Qed.
+
+(* TODO: not the right theorem??
+Lemma InterpExt_sym_P i I A B R P
+  (h : ⟦ A ⟧ i , I ↘ R , P)
+  (ih : forall j lt A B, I j lt A B -> I j lt B A) :
+  P B -> ⟦ B ⟧ i , I ↘ R , P.
+Proof.
+  move : B. elim : A R P /h => //.
+  - move => A B RA RF PA PF hA ihA hRF hPF hB ihB C [A'] [B'] [r] [hPA] hPB.
+    eapply InterpExt_Steps; eauto.
+    apply InterpExt_Fun; auto.
+    move => *. eapply ihB; eauto.
+    admit.
+  - move => *. eapply InterpExt_Steps; eauto using InterpExt_Univ.
+  - move => a b A R P hA ihA B [a'] [b'] [A'] [r] [hP] [hRa] hRb.
+    eapply InterpExt_Steps; eauto.
+    eapply InterpExt_Eq'.
+    3: apply ihA; auto.
+    * unfold EqSpace.
+      fext. move => p1 p2.
+      apply propositional_extensionality.
+      intuition.
+      admit. admit.
+    * unfold EqType.
+      fext. move => C.
+      apply propositional_extensionality. split.
+      + move => [a''] [b''] [A''] [r''] [hP'] [hRa'] hRb'.
+        exists a'', b'', A''. repeat split; auto.
+        admit. admit.
+      + move => [a''] [b''] [A''] [r''] [hP'] [hRa'] hRb'.
+        exists a'', b'', A''. repeat split; auto.
+        admit. admit.
+Admitted.
+*)
+
+Lemma InterpUnivN_sym i A R P (h : ⟦ A ⟧ i ↘ R , P) :
+  forall a b, R a b -> R b a.
+Proof.
+  simp InterpUnivN in h.
+  elim : A R P /h => //;
+  hauto lq:on use:InterpExt_sym unfold:ProdSpace, EqSpace.
 Qed.
 
 (* Inversion lemmas *)
 
-Lemma InterpExt_Fun_inv i I A B R
-  (h :  ⟦ tPi A B ⟧ i , I ↘ R) :
-  exists (RA : tm_rel) (RF : tm -> tm_rel -> Prop),
-    ⟦ A ⟧ i , I ↘ RA /\
+Lemma InterpExt_Fun_inv i I A B R P
+  (h :  ⟦ tPi A B ⟧ i , I ↘ R, P) :
+  exists (RA : tm_rel) (RF : tm -> tm_rel -> Prop) (PA : tm_set) (PF : tm -> tm_set -> Prop),
+    ⟦ A ⟧ i , I ↘ RA , PA /\
     (forall a0 a1, RA a0 a1 -> exists RB, RF a0 RB /\ RF a1 RB) /\
-    (forall a RB, RF a RB -> ⟦ B[a..] ⟧ i , I ↘ RB) /\
-    R = ProdSpace RA RF.
+    (forall a0 a1, RA a0 a1 -> exists PB, PF a0 PB /\ PF a1 PB) /\
+    (forall a RB PB, RF a RB -> PF a PB -> ⟦ B[a..] ⟧ i , I ↘ RB , PB) /\
+    R = ProdSpace RA RF /\ P = ProdType RA PA PF.
 Proof.
   move E : (tPi A B) h => T h.
   move : A B E.
-  elim : T R / h => //.
+  elim : T R P / h => //.
   - hauto lq:on.
   - move => *; subst.
     hauto lq:on rew:off inv:Par ctrs:InterpExt use:Par_subst.
 Qed.
 
-Lemma InterpExt_Univ_inv i I R j :
-  ⟦ tUniv j ⟧ i , I ↘ R ->
-  exists lt, R = I j lt.
+Lemma InterpExt_Univ_inv i I R P j :
+  ⟦ tUniv j ⟧ i , I ↘ R , P ->
+  exists lt, R = I j lt /\ P = (fun A => A ⇒* tUniv j).
 Proof.
   move E : (tUniv j) => A h.
   move : E.
-  elim : A R / h => //;
+  elim : A R P / h => //;
   hauto l:on inv:Par,tm.
 Qed.
 
-Lemma InterpUnivN_Univ_inv i j R (h : ⟦ tUniv j ⟧ i ↘ R) :
-  R = (fun A0 A1 : tm => ⟦ A0 ⟧ ~ ⟦ A1 ⟧ j) /\ j < i.
+Lemma InterpUnivN_Univ_inv i j R P (h : ⟦ tUniv j ⟧ i ↘ R , P) :
+  j < i /\
+    (R = (fun A0 A1 => exists RA P0 P1,
+      ⟦ A0 ⟧ j ↘ RA , P0 /\ ⟦ A1 ⟧ j ↘ RA , P1 /\ P0 A1 /\ P1 A0)) /\
+    (P = (fun A => A ⇒* tUniv j)).
 Proof.
+  simp InterpUnivN in h.
   hauto l:on use:InterpExt_Univ_inv.
-Qed.
-
-(* PerTypeN constructors *)
-
-Lemma PerTypeN_Fun i A0 A1 B0 B1 R :
-  ⟦ A0 ⟧ ~ ⟦ A1 ⟧ i ->
-  ⟦ A0 ⟧ i ↘ R ->
-  ⟦ A1 ⟧ i ↘ R ->
-  (forall a0 a1, R a0 a1 -> ⟦ B0[a0..] ⟧ ~ ⟦ B1[a1..] ⟧ i) ->
-  ⟦ tPi A0 B0 ⟧ ~ ⟦ tPi A1 B1 ⟧ i.
-Proof.
-  simp PerTypeN; hauto lq:on ctrs:PerType.
-Qed.
-
-Lemma PerTypeN_Univ i j : j < i -> ⟦ tUniv j ⟧ ~ ⟦ tUniv j ⟧ i.
-Proof. simp PerTypeN; hauto lq:on ctrs:PerType. Qed.
-
-Lemma PerTypeN_Eq i a0 a1 b0 b1 A0 A1 R :
-  ⟦ A0 ⟧ ~ ⟦ A1 ⟧ i ->
-  ⟦ A0 ⟧ i ↘ R ->
-  ⟦ A1 ⟧ i ↘ R ->
-  R a0 a1 -> R b0 b1 ->
-  ⟦ tEq a0 b0 A0 ⟧ ~ ⟦ tEq a1 b1 A1 ⟧ i.
-Proof. simp PerTypeN; hauto lq:on ctrs:PerType. Qed.
-
-Lemma PerTypeN_Step A0 A1 B0 B1 i (rA : A0 ⇒ A1) (rB : B0 ⇒ B1) :
-  ⟦ A1 ⟧ ~ ⟦ B1 ⟧ i -> ⟦ A0 ⟧ ~ ⟦ B0 ⟧ i.
-Proof. simp PerTypeN; hauto lq:on use:PerType_Step. Qed.
-
-Lemma PerTypeN_Steps A0 A1 B0 B1 i (rA : A0 ⇒* A1) (rB : B0 ⇒* B1) :
-  ⟦ A1 ⟧ ~ ⟦ B1 ⟧ i -> ⟦ A0 ⟧ ~ ⟦ B0 ⟧ i.
-Proof.
-  elim : A0 A1 /rA; elim : B0 B1 /rB; auto;
-  sfirstorder use:PerTypeN_Step, Par_refl.
 Qed.
 
 (* Backward preservation *)
 
-Lemma InterpExt_bwd_R i I A R
-  (h : ⟦ A ⟧ i , I ↘ R)
+Lemma InterpExt_bwd_R i I A R P
+  (h : ⟦ A ⟧ i , I ↘ R , P)
   (hI : forall j lt a0 a1 b0 b1,
         a0 ⇒ a1 -> b0 ⇒ b1 ->
         I j lt a1 b1 -> I j lt a0 b0) :
   forall a0 a1 b0 b1, a0 ⇒ a1 -> b0 ⇒ b1 -> R a1 b1 -> R a0 b0.
 Proof.
-  elim : A R /h; auto.
-  - qauto l:on use:P_App, Par_refl unfold:ProdSpace.
+  elim : A R P /h => //.
+  - move => A B RA RF PA PF hA ihA hRF hPF hB ihB f0 f1 g0 g1 ra rb h a0 a1 RB hRA hRF0 hRF1.
+    case /(_ a0 a1 hRA) : hPF => [PB] [hPF0] hPF1.
+    qauto l:on use:P_App, Par_refl unfold:ProdSpace.  
   - hauto lq:on ctrs:rtc.
 Qed.
 
-Lemma InterpUnivN_bwd_R i A R (h : ⟦ A ⟧ i ↘ R) :
-  forall a0 a1 b0 b1, a0 ⇒ a1 -> b0 ⇒ b1 -> R a1 b1 -> R a0 b0.
-Proof. hauto lq:on use:InterpExt_bwd_R, PerTypeN_Step. Qed.
-
-Lemma InterpUnivN_bwds_R i A R a0 a1 b0 b1
-  (h : ⟦ A ⟧ i ↘ R)
-  (ra : a0 ⇒* a1) (rb : b0 ⇒* b1) :
-  R a1 b1 -> R a0 b0.
+Lemma InterpExt_bwds_R i I A R P
+  (h : ⟦ A ⟧ i , I ↘ R , P)
+  (hI : forall j lt a0 a1 b0 b1,
+        a0 ⇒* a1 -> b0 ⇒* b1 ->
+        I j lt a1 b1 -> I j lt a0 b0) :
+  forall a0 a1 b0 b1, a0 ⇒* a1 -> b0 ⇒* b1 -> R a1 b1 -> R a0 b0.
 Proof.
-  elim : a0 a1 /ra; elim : b0 b1 /rb;
-  hauto l:on use:InterpUnivN_bwd_R, Par_refl.
+  move => a0 a1 + + ra.
+  elim : a0 a1 /ra.
+  1: move => a b0 b1 rb.
+  2: move => a0 a1 a2 ra01 ra12 iha b0 b1 rb.
+  all: elim : b0 b1 /rb => //.
+  - move => b0 b1 b2 rb01 rb12 hRb1 hRb2.
+    eapply InterpExt_bwd_R; eauto using Par_refl.
+    move => *. eapply hI; eauto using rtc_once.
+  - move => b hRa2.
+    eapply InterpExt_bwd_R; eauto using Par_refl.
+    move => *. eapply hI; eauto using rtc_once.
+    sauto lq:on use:rtc_once.
+  - move => b0 b1 b2 rb01 rb12 ihb hRb2.
+    eapply InterpExt_bwd_R; eauto.
+    move => *. eapply hI; eauto using rtc_once.
+Qed.
+
+Lemma InterpExt_bwd_P i I A R P
+  (h : ⟦ A ⟧ i , I ↘ R , P) :
+  forall B0 B1, B0 ⇒ B1 -> P B1 -> P B0.
+Proof.
+  elim : A R P /h => //;
+  hauto lq:on ctrs:rtc unfold:ProdType, EqType.
+Qed.
+
+Lemma InterpExt_bwds_P i I A R P
+  (h : ⟦ A ⟧ i , I ↘ R , P) :
+  forall B0 B1, B0 ⇒* B1 -> P B1 -> P B0.
+Proof.
+  move => B0 B1 r.
+  elim : B0 B1 /r => //.
+  move => *. eapply InterpExt_bwd_P; eauto.
+Qed.
+
+Lemma InterpUnivN_bwds_R i A R P
+  (h : ⟦ A ⟧ i ↘ R , P) :
+  forall a0 a1 b0 b1, a0 ⇒* a1 -> b0 ⇒* b1 -> R a1 b1 -> R a0 b0.
+Proof.
+  simp InterpUnivN in h.
+  eapply InterpExt_bwds_R; eauto.
+  move => j lt a0 a1 b0 b1 ra rb [RA] [P0] [P1] [ha1] [hb1] [hP0] hP1.
+  exists RA, P0, P1. simp InterpUnivN in *.
+  hauto lq:on use:InterpExt_Steps, InterpExt_bwds_P.
 Qed.
 
 (* Forward preservation *)
 
-Lemma InterpExt_fwd_R i I A R a0 a1 b0 b1
-  (h : ⟦ A ⟧ i , I ↘ R)
+Lemma InterpExt_fwds_R i I A R P a0 a1 b0 b1
+  (h : ⟦ A ⟧ i , I ↘ R , P)
   (hI : forall j lt a0 a1 b0 b1,
-        a0 ⇒ a1 -> b0 ⇒ b1 ->
+        a0 ⇒* a1 -> b0 ⇒* b1 ->
         I j lt a0 b0 -> I j lt a1 b1)
-  (ra : a0 ⇒ a1) (rb : b0 ⇒ b1) :
+  (ra : a0 ⇒* a1) (rb : b0 ⇒* b1) :
   R a0 b0 -> R a1 b1.
 Proof.
   move : a0 a1 b0 b1 ra rb.
-  elim : A R /h => //.
-  - move => ? ? ? ? _ _ _ _ ihRB * > *.
+  elim : A R P /h => //.
+  - move => ? ? ? ? ? ? _ _ _ hPF _ ihRB * a0 a1 ? hRA *.
+    case /(_ a0 a1 hRA) : hPF => PB [hPF0] hPF1.
     eapply ihRB; eauto;
       last by hauto lq:on unfold:ProdSpace.
-    all: hauto q:on ctrs:Par use:Par_refl.
+    all: hauto lq:on ctrs:rtc use:Pars_App.
   - move => > _ _ > rp rq [rpRefl0] [rqRefl0] RAab.
-    have [p' [rpRefl1 rp1]] := Pars_confluent _ _ _ rpRefl0 (rtc_once _ _ rp).
-    have [q' [rqRefl1 rq1]] := Pars_confluent _ _ _ rqRefl0 (rtc_once _ _ rq).
+    have [p' [rpRefl1 rp1]] := Pars_confluent _ _ _ rpRefl0 rp.
+    have [q' [rqRefl1 rq1]] := Pars_confluent _ _ _ rqRefl0 rq.
     sauto l:on use:Pars_refl_inv.
 Qed.
 
-Lemma InterpExt_fwd i I A B R
+Lemma InterpExt_fwds_P i I A R P B0 B1
+  (h : ⟦ A ⟧ i , I ↘ R , P)
+  (I_fwds : forall j lt a0 a1 b0 b1,
+            a0 ⇒* a1 -> b0 ⇒* b1 ->
+            I j lt a0 b0 -> I j lt a1 b1)
+  (r : B0 ⇒* B1) :
+  P B0 -> P B1.
+Proof.
+  move : B0 B1 r.
+  elim : A R P /h => //.
+  - move => A B RA RF PA PF hA ihA hRF hPF hB ihB B0 B1 r [A'] [B'] [r'] [hPA] hPB.
+    have [C [rC rPiC]] := Pars_confluent _ _ _ r r'.
+    move /Pars_pi_inv : rPiC => [A''] [B''] [E] [rA'] rB'. subst.
+    exists A'', B''. split; auto; split. eapply ihA; eauto.
+    move => a0 a1 PB hRA hPF0 hPF1.
+    move /(_ a0 a1 PB hRA hPF0 hPF1) : hPB => [hPB0] hPB1.
+    move /(_ a0 a1 hRA) : hRF => [RB] [hRF0] hRF1.
+    hauto lq:on ctrs:rtc use:Par_subst_star.
+  - move => j lt B0 B1 r1 rUniv.
+    have [B2 [r12 rUniv2]] := Pars_confluent _ _ _ r1 rUniv.
+    move /Pars_univ_inv : rUniv2 => <- //.
+  - move => a b A R P h ih B0 B1 r [a'] [b'] [A'] [rEq] [hPA'] [hRa] hRb.
+    have [B2 [r12 rEq2]] := Pars_confluent _ _ _ r rEq.
+    move /Pars_eq_inv : rEq2 => [a''] [b''] [A''] [E] [ra] [rb] rA.
+    hauto l:on ctrs:rtc use:InterpExt_fwds_R.
+Qed.
+
+Lemma InterpExt_fwds i I A B R P
   (I_bwd : forall j lt a0 a1 b0 b1,
-           a0 ⇒ a1 -> b0 ⇒ b1 -> I j lt a1 b1 -> I j lt a0 b0)
+           a0 ⇒* a1 -> b0 ⇒* b1 -> I j lt a1 b1 -> I j lt a0 b0)
   (I_fwd : forall j lt a0 a1 b0 b1,
-           a0 ⇒ a1 -> b0 ⇒ b1 -> I j lt a0 b0 -> I j lt a1 b1)
-  (r : A ⇒ B) :
-  ⟦ A ⟧ i , I ↘ R ->
-  ⟦ B ⟧ i , I ↘ R.
+           a0 ⇒* a1 -> b0 ⇒* b1 -> I j lt a0 b0 -> I j lt a1 b1)
+  (r : A ⇒* B) :
+  ⟦ A ⟧ i , I ↘ R , P ->
+  ⟦ B ⟧ i , I ↘ R , P.
 Proof.
   move => h. move : B r.
-  elim : A R /h.
-  - hauto l:on ctrs:InterpExt inv:Par use:Par_subst.
-  - hauto lq:on ctrs:InterpExt inv:Par.
-  - move => > h ih T rEq.
-    elim /Par_inv : rEq => //.
-    move => > ? > ? ? ?.
-    case => <- <- ? ?. subst.
+  elim : A R P /h.
+  - hauto l:on use:Pars_pi_inv, InterpExt_Fun, Pars_morphing_star, rtc_refl.
+  - hauto lq:on ctrs:InterpExt use:Pars_univ_inv.
+  - move => > h ih T /Pars_eq_inv => [[a'] [b'] [A'] [->] [ra] [rb] rA].
     eapply InterpExt_Eq'; last by apply ih.
-    fext. move => *. apply propositional_extensionality.
-    hauto l:on use:InterpExt_fwd_R, InterpExt_bwd_R.
-  - move => A0 A1 RA rA01 hA1 ih A2 rA02.
-    have [B3 [rA13 rA23]] := Par_confluent _ _ _ rA01 rA02.
-    eapply InterpExt_Step; eauto.
+    + fext. move => *. apply propositional_extensionality.
+      hauto l:on use:InterpExt_fwds_R, InterpExt_bwds_R.
+    + fext. move => *. apply propositional_extensionality.
+      hauto l:on use:InterpExt_fwds_R, InterpExt_bwds_R, rtc_refl.
+  - move => A0 A1 RA PA rA01 hA1 ih A2 rA02.
+    have [B3 [rA13 rA23]] := Pars_confluent _ _ _ (rtc_once _ _ rA01) rA02.
+    eapply InterpExt_Steps; eauto.
 Qed.
 
-Lemma PerType_fwd i I A0 A1 B0 B1
-  (I_bwd : forall j lt a0 a1 b0 b1,
-           a0 ⇒ a1 -> b0 ⇒ b1 -> I j lt a1 b1 -> I j lt a0 b0)
-  (I_fwd : forall j lt a0 a1 b0 b1,
-           a0 ⇒ a1 -> b0 ⇒ b1 -> I j lt a0 b0 -> I j lt a1 b1)
-  (rA : A0 ⇒ A1) (rB : B0 ⇒ B1) :
-  ⟦ A0 ⟧ ~ ⟦ B0 ⟧ i , I -> ⟦ A1 ⟧ ~ ⟦ B1 ⟧ i , I.
-Proof.
-  move => h. move : A1 B1 rA rB.
-  elim : A0 B0 /h.
-  - move => A0 A1 B0 B1 RA hA ihA hRA1 hRA2 hB ihB C1 C2 rC1 rC2.
-    elim /Par_inv : rC1 => //.
-    elim /Par_inv : rC2 => //.
-    qauto l:on ctrs:PerType use:Par_subst, InterpExt_fwd.
-  - hauto lq:on ctrs:PerType inv:Par.
-  - move => a0 a1 b0 b1 A0 A1 RA h ih hRA0 hRA1 hRAa hRAb B0 B1 r0 r1.
-    elim /Par_inv : r0 => // ? > ? ? ?. case => *.
-    elim /Par_inv : r1 => // ? > ? ? ?. case => *. subst.
-    eapply PerType_Eq; auto;
-      hauto l:on use:InterpExt_fwd, InterpExt_fwd_R.
-  - move => A0 A1 B0 B1 rA01 rB01 h ih A2 B2 rA02 rB02.
-    have [A3 [rA13 rA23]] := Par_confluent _ _ _ rA01 rA02.
-    have [B3 [rB13 rB23]] := Par_confluent _ _ _ rB01 rB02.
-    eapply PerType_Step; eauto.
-Qed.
-
-Lemma PerTypeN_fwd i A0 A1 B0 B1
-  (rA : A0 ⇒ A1) (rB : B0 ⇒ B1) :
-  ⟦ A0 ⟧ ~ ⟦ B0 ⟧ i -> ⟦ A1 ⟧ ~ ⟦ B1 ⟧ i.
-Proof.
-  move : A0 A1 B0 B1 rA rB.
-  have h : Acc (fun x y => x < y) i by sfirstorder use:wellfounded.
-  elim : i /h.
-  hauto lq:on ctrs:PerType use:PerType_fwd, PerTypeN_nolt.
-Qed.
-
-Lemma InterpUnivN_fwd_R i A R a0 a1 b0 b1
-  (h : ⟦ A ⟧ i ↘ R)
-  (ra : a0 ⇒ a1) (rb : b0 ⇒ b1) :
+Lemma InterpUnivN_fwds_R i A R P a0 a1 b0 b1
+  (h : ⟦ A ⟧ i ↘ R , P)
+  (ra : a0 ⇒* a1) (rb : b0 ⇒* b1) :
   R a0 b0 -> R a1 b1.
 Proof.
   move : A R a0 a1 b0 b1 h ra rb.
   have h : Acc (fun x y => x < y) i by sfirstorder use:wellfounded.
   elim : i /h.
-  hauto l:on use:InterpExt_fwd_R, PerTypeN_fwd.
-Qed.
+  move => j ih h A R a0 a1 b0 b1 hA ra rb hR0.
+  simp InterpUnivN in *.
+  eapply InterpExt_fwds_R; eauto. simpl.
+  move => i lt A0 A1 B0 B1 rA rB [RA] [P0] [P1] [hA0] [hB0] [hP0B0] hP1A0.
+  exists RA, P0, P1. repeat split.
+Admitted.
 
 Lemma InterpUnivN_fwd i A B R (r : A ⇒ B) :
   ⟦ A ⟧ i ↘ R -> ⟦ B ⟧ i ↘ R.
@@ -361,45 +410,6 @@ Proof.
   elim : A0 A1 /rA; elim : B0 B1 /rB;
   hauto lq:on use:PerTypeN_fwd, Par_refl.
 Qed.
-
-(* Eta laws
-   These are currently unused, but if coherence is extended with eta,
-   they will be needed to show preservation of coherence. *)
-
-Lemma InterpUnivN_eta_left i A B R
-  (h : ⟦ tPi A B ⟧ i ↘ R) :
-  forall a b, R (tAbs (tApp (a ⟨S⟩) (var_tm 0))) b <-> R a b.
-Proof.
-  move E : (tPi A B) h => C h.
-  move : A B E.
-  elim : C R /h => //.
-  - move => > ? _ _ ? _ > _ f g.
-    split; move => ? a b ? ? ? ?.
-    all: have r : tApp (tAbs (tApp (ren_tm shift f) (var_tm 0))) a ⇒ tApp f a by
-      eapply P_AppAbs' with (a0 := tApp (ren_tm shift f) (var_tm 0)) (b1 := a);
-      asimpl; sfirstorder use:Par_refl.
-    + hauto l:on unfold:ProdSpace use:InterpExt_fwd_R, PerTypeN_fwd, Par_refl.
-    + hauto l:on unfold:ProdSpace use:InterpExt_bwd_R, PerTypeN_Step, Par_refl.
-  - move => > r.
-    elim /Par_inv : r => //. hauto l:on.
-Qed.
-
-Lemma InterpUnivN_eta_right i A B R
-  (h : ⟦ tPi A B ⟧ i ↘ R) :
-  forall a b, R a (tAbs (tApp (b ⟨S⟩) (var_tm 0))) <-> R a b.
-Proof.
-  move : (InterpUnivN_eta_left _ _ _ _ h) => ih.
-  split => *;
-  eapply InterpUnivN_sym; eauto;
-  apply ih;
-  eapply InterpUnivN_sym; eauto.
-Qed.
-
-Lemma InterpUnivN_eta i A B R
-  (h : ⟦ tPi A B ⟧ i ↘ R) :
-  forall a b, R (tAbs (tApp (a ⟨S⟩) (var_tm 0)))
-                (tAbs (tApp (b ⟨S⟩) (var_tm 0))) <-> R a b.
-Proof. hauto l:on use:InterpUnivN_eta_left, InterpUnivN_eta_right. Qed.
 
 (* Coherence preservation *)
 
@@ -539,6 +549,25 @@ Lemma InterpUnivN_Eq_inv i a b A R
     ⟦ A ⟧ i ↘ RA /\
     R = (fun p1 p2 => p1 ⇒* tRefl /\ p2 ⇒* tRefl /\ RA a b).
 Proof. hauto l:on use:InterpExt_Eq_inv, PerTypeN_Step, PerTypeN_fwd. Qed.
+
+(* Zig zag *)
+
+Lemma InterpExt_zigzag i I A B RA RB PA PB
+  (hA : ⟦ A ⟧ i , I ↘ RA , PA)
+  (hB : ⟦ B ⟧ i , I ↘ RB , PB)
+  (I_bwd : forall j lt a0 a1 b0 b1,
+           a0 ⇒* a1 -> b0 ⇒* b1 -> I j lt a1 b1 -> I j lt a0 b0)
+  (I_fwd : forall j lt a0 a1 b0 b1,
+           a0 ⇒* a1 -> b0 ⇒* b1 -> I j lt a0 b0 -> I j lt a1 b1) :
+  PA B -> PB A.
+Proof.
+  elim : A RA PA /hA.
+  - admit.
+  - hauto lq:on use:InterpExt_fwds, InterpExt_Univ_inv, rtc_refl.
+  - move => a b A R P hA ih [a'] [b'] [A'] [r] [hPA'] [hRa] hRb.
+    eapply InterpExt_fwds in hB; eauto.
+    admit.
+Admitted.
 
 (* Interpretations are cumulative *)
 
